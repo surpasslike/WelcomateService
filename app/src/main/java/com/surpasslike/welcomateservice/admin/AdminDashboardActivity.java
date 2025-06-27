@@ -29,6 +29,27 @@ import com.surpasslike.welcomateservice.databinding.ActivityAdminDashboardBindin
 
 import java.util.List;
 
+/**
+ * 管理员仪表盘界面 - 服务端用户管理中心
+ * 
+ * 功能职责：
+ * 1. 提供服务端用户管理的图形界面（增删改查）
+ * 2. 显示服务端数据库B中的所有用户列表
+ * 3. 支持管理员对用户进行密码修改、删除、添加操作
+ * 4. 实时监听数据库变化广播，自动刷新用户列表
+ * 5. 将服务端的操作同步推送到客户端A
+ * 
+ * 同步机制：
+ * - 启动同步：页面加载时主动从客户端拉取数据
+ * - 操作同步：管理员操作后立即推送到客户端
+ * - 实时刷新：监听广播事件，自动刷新界面显示
+ * 
+ * 主要功能按钮：
+ * - 修改密码：选择用户并修改其密码
+ * - 添加用户：创建新的用户账号
+ * - 删除用户：删除指定的用户账号
+ * - 刷新列表：手动刷新用户列表显示
+ */
 public class AdminDashboardActivity extends AppCompatActivity {
 
     private static final String TAG = "AdminDashboardActivity";

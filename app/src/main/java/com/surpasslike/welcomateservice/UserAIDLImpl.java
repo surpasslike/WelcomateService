@@ -19,11 +19,37 @@ import com.surpasslike.welcomateservice.config.SyncConfig;
 
 import java.util.List;
 
+/**
+ * AIDL服务实现类 - 服务端核心业务逻辑
+ * 
+ * 功能职责：
+ * 1. 实现IAdminService接口，提供跨进程的用户管理服务
+ * 2. 管理服务端数据库B的所有CRUD操作
+ * 3. 处理客户端的同步请求和数据变更通知
+ * 4. 启动时主动连接客户端，拉取本地数据进行初始同步
+ * 5. 广播数据库变化事件，通知AdminDashboard实时刷新
+ * 
+ * 同步机制：
+ * - 启动同步：服务启动2秒后主动连接客户端，拉取所有本地数据
+ * - 实时通知：接收客户端的数据变更通知，立即更新服务端数据库
+ * - 广播刷新：数据变化后广播事件，让AdminDashboard及时刷新界面
+ * 
+ * AIDL方法：
+ * - loginAdmin: 用户登录验证
+ * - registerUser: 用户注册
+ * - updateUserPassword: 修改密码
+ * - deleteUser: 删除用户
+ * - notify*: 接收客户端变更通知
+ */
 public class UserAIDLImpl extends IAdminService.Stub {
     private final String TAG = "UserAIDLImpl";
     private final DatabaseHelper dbHelper;
     private Handler mainHandler;
 
+    /**
+     * 构造函数 - 初始化AIDL服务
+     * 创建时自动启动主动客户端同步机制
+     */
     public UserAIDLImpl() {
         this.dbHelper = new DatabaseHelper(MyApplication.getContext());
         this.mainHandler = new Handler(Looper.getMainLooper());
@@ -32,7 +58,13 @@ public class UserAIDLImpl extends IAdminService.Stub {
         startProactiveClientSync();
     }
 
-    // 验证用户登录
+    /**
+     * AIDL接口实现 - 用户登录验证
+     * 
+     * @param account 用户账号
+     * @param password 用户密码
+     * @return 登录成功返回用户名，失败返回null
+     */
     @Override
     public String loginAdmin(String account, String password) {
         SQLiteDatabase db = dbHelper.getReadableDatabase();
@@ -53,6 +85,15 @@ public class UserAIDLImpl extends IAdminService.Stub {
         }
     }
 
+    /**
+     * AIDL接口实现 - 用户注册
+     * 在服务端数据库B中创建新用户记录
+     * 
+     * @param username 用户名
+     * @param account 用户账号
+     * @param password 用户密码
+     * @return 注册成功返回true，失败返回false（通常是因为用户已存在）
+     */
     @Override
     public boolean registerUser(String username, String account, String password) {
         Log.d(TAG, "registerUser called - username: " + username + ", account: " + account);
@@ -75,6 +116,13 @@ public class UserAIDLImpl extends IAdminService.Stub {
         return success;
     }
 
+    /**
+     * AIDL接口实现 - 删除用户
+     * 从服务端数据库B中删除指定用户，并广播变化事件
+     * 
+     * @param username 要删除的用户名
+     * @throws RemoteException AIDL调用异常
+     */
     @Override
     public void deleteUser(String username) throws RemoteException {
         Log.d(TAG, "deleteUser: " + username);
@@ -96,7 +144,14 @@ public class UserAIDLImpl extends IAdminService.Stub {
         }
     }
 
-    // 更新指定用户的密码
+    /**
+     * AIDL接口实现 - 更新用户密码
+     * 在服务端数据库B中修改指定用户的密码，并广播变化事件
+     * 
+     * @param username 用户名
+     * @param newPassword 新密码
+     * @throws RemoteException AIDL调用异常
+     */
     @Override
     public void updateUserPassword(String username, String newPassword) throws RemoteException {
         Log.d(TAG, "updateUserPassword for user: " + username);
@@ -132,6 +187,15 @@ public class UserAIDLImpl extends IAdminService.Stub {
         // 服务端不实现这个方法，这是客户端专用的
     }
     
+    /**
+     * 接收客户端用户注册通知
+     * 当客户端在离线状态下注册用户后，会调用此方法通知服务端
+     * 
+     * @param username 注册的用户名
+     * @param account 注册的账号
+     * @param password 注册的密码
+     * @throws RemoteException AIDL调用异常
+     */
     @Override
     public void notifyUserRegistered(String username, String account, String password) throws RemoteException {
         Log.d(TAG, "Received notification: User registered - " + username);
@@ -139,6 +203,13 @@ public class UserAIDLImpl extends IAdminService.Stub {
         // 实际的用户数据已经通过registerUser方法处理了
     }
     
+    /**
+     * 接收客户端用户删除通知
+     * 当客户端删除用户后，通过此方法确保服务端数据库B也删除对应记录
+     * 
+     * @param username 被删除的用户名
+     * @throws RemoteException AIDL调用异常
+     */
     @Override
     public void notifyUserDeleted(String username) throws RemoteException {
         Log.d(TAG, "Received notification: User deleted from client - " + username);
@@ -163,6 +234,14 @@ public class UserAIDLImpl extends IAdminService.Stub {
         }
     }
     
+    /**
+     * 接收客户端密码更新通知
+     * 当客户端修改密码后，通过此方法确保服务端数据库B也更新对应记录
+     * 
+     * @param username 用户名
+     * @param newPassword 新密码
+     * @throws RemoteException AIDL调用异常
+     */
     @Override
     public void notifyPasswordUpdated(String username, String newPassword) throws RemoteException {
         Log.d(TAG, "Received notification: Password updated from client for user - " + username);
@@ -196,6 +275,13 @@ public class UserAIDLImpl extends IAdminService.Stub {
     }
     
     
+    /**
+     * 检查用户是否存在
+     * 在服务端数据库B中查询指定账号是否已存在
+     * 
+     * @param account 用户账号
+     * @return true表示用户存在，false表示不存在
+     */
     private boolean checkUserExists(String account) {
         SQLiteDatabase db = dbHelper.getReadableDatabase();
         String selection = DatabaseHelper.COLUMN_ACCOUNT + " = ?";
