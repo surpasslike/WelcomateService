@@ -6,24 +6,40 @@ import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import android.content.BroadcastReceiver;
+import android.content.ComponentName;
+import android.content.Context;
 import android.content.DialogInterface;
+import android.content.Intent;
+import android.content.IntentFilter;
+import android.content.ServiceConnection;
 import android.os.Bundle;
+import android.os.IBinder;
+import android.os.RemoteException;
+import android.util.Log;
 import android.view.View;
 import android.widget.EditText;
 import android.widget.Toast;
 
+import com.surpasslike.welcomateservice.IAdminService;
 import com.surpasslike.welcomateservice.R;
 import com.surpasslike.welcomateservice.User;
+import com.surpasslike.welcomateservice.config.SyncConfig;
 import com.surpasslike.welcomateservice.databinding.ActivityAdminDashboardBinding;
 
 import java.util.List;
 
 public class AdminDashboardActivity extends AppCompatActivity {
 
+    private static final String TAG = "AdminDashboardActivity";
     private ActivityAdminDashboardBinding binding;
     private AdminViewModel adminViewModel;
     private List<User> userList;
     private com.surpasslike.welcomateservice.admin.AdminUserAdapter adapter;
+    
+    // 数据库变化监听器
+    private BroadcastReceiver databaseChangeReceiver;
+    
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -63,6 +79,20 @@ public class AdminDashboardActivity extends AppCompatActivity {
                 showDeleteUserDialog();
             }
         });
+        
+        binding.btnRefresh.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                // 刷新用户列表
+                refreshUserList();
+            }
+        });
+        
+        // 页面加载时尝试从客户端同步数据
+        triggerInitialSync();
+        
+        // 注册数据库变化监听器
+        setupDatabaseChangeListener();
     }
 
     // 显示Toast提示信息的方法
@@ -121,6 +151,9 @@ public class AdminDashboardActivity extends AppCompatActivity {
                 userList = adminViewModel.getAllUsers(); // 添加用户后刷新用户列表
                 adapter.setUserList(userList); // 使用新用户列表更新适配器
                 showToast("Password changed for " + username);
+                
+                // 服务端修改后，立即推送到客户端A
+                pushOperationToClient("updatePassword", username, null, newPassword);
             }
         });
 
@@ -159,6 +192,9 @@ public class AdminDashboardActivity extends AppCompatActivity {
                     showToast("User added");
                     userList = adminViewModel.getAllUsers(); // 添加用户后刷新用户列表
                     adapter.setUserList(userList); // 使用新用户列表更新适配器
+                    
+                    // 服务端添加用户后，立即推送到客户端A
+                    pushOperationToClient("addUser", newUsername, newAccount, newPassword);
                 } else {
                     showToast("Failed to add user");
                 }
@@ -194,6 +230,9 @@ public class AdminDashboardActivity extends AppCompatActivity {
                 showToast("User deleted");
                 userList = adminViewModel.getAllUsers(); // 删除用户后刷新用户列表
                 adapter.setUserList(userList); // 使用更新的用户列表更新适配器
+                
+                // 服务端删除用户后，立即推送到客户端A
+                pushOperationToClient("deleteUser", usernameToDelete, null, null);
             }
         });
 
@@ -205,5 +244,250 @@ public class AdminDashboardActivity extends AppCompatActivity {
         });
 
         builder.create().show();
+    }
+    
+    /**
+     * 页面启动时触发初始同步
+     */
+    private void triggerInitialSync() {
+        Log.d(TAG, "Triggering initial sync from client...");
+        
+        new Thread(() -> {
+            try {
+                Intent intent = new Intent();
+                intent.setComponent(new ComponentName(SyncConfig.CLIENT_PACKAGE, SyncConfig.CLIENT_SERVICE));
+                
+                ServiceConnection connection = new ServiceConnection() {
+                    @Override
+                    public void onServiceConnected(ComponentName name, IBinder service) {
+                        Log.d(TAG, "Connected to client for initial sync");
+                        try {
+                            IAdminService clientService = IAdminService.Stub.asInterface(service);
+                            List<String> clientUsers = clientService.getLocalUsers();
+                            Log.d(TAG, "Retrieved " + clientUsers.size() + " users from client during initial sync");
+                            
+                            int syncedCount = 0;
+                            for (String userData : clientUsers) {
+                                String[] parts = userData.split("\\|");
+                                if (parts.length == 3) {
+                                    String username = parts[0];
+                                    String account = parts[1];
+                                    String password = parts[2];
+                                    
+                                    // 检查用户是否已存在
+                                    boolean userExists = false;
+                                    for (User existingUser : userList) {
+                                        if (existingUser.getAccount().equals(account)) {
+                                            userExists = true;
+                                            break;
+                                        }
+                                    }
+                                    
+                                    if (!userExists) {
+                                        long result = adminViewModel.addUser(username, account, password);
+                                        if (result != -1) {
+                                            syncedCount++;
+                                            Log.d(TAG, "Initially synced user: " + username);
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            final int finalSyncedCount = syncedCount;
+                            runOnUiThread(() -> {
+                                if (finalSyncedCount > 0) {
+                                    showToast("初始同步完成，获取到 " + finalSyncedCount + " 个用户");
+                                    userList = adminViewModel.getAllUsers();
+                                    adapter.setUserList(userList);
+                                } else {
+                                    Log.d(TAG, "No new users to sync during initial sync");
+                                }
+                            });
+                            
+                            // 在onServiceConnected内部解绑服务
+                            try {
+                                unbindService(this);
+                            } catch (Exception e) {
+                                Log.e(TAG, "Error unbinding service", e);
+                            }
+                            
+                        } catch (RemoteException e) {
+                            Log.e(TAG, "Error during initial sync", e);
+                        }
+                    }
+                    
+                    @Override
+                    public void onServiceDisconnected(ComponentName name) {
+                        Log.d(TAG, "Client service disconnected after initial sync");
+                    }
+                };
+                
+                boolean bound = bindService(intent, connection, Context.BIND_AUTO_CREATE);
+                if (!bound) {
+                    Log.w(TAG, "Failed to bind to client for initial sync - client may not be running");
+                }
+                
+            } catch (Exception e) {
+                Log.e(TAG, "Error in initial sync", e);
+            }
+        }).start();
+    }
+    
+    /**
+     * 刷新用户列表显示
+     */
+    private void refreshUserList() {
+        Log.d(TAG, "Refreshing user list...");
+        userList = adminViewModel.getAllUsers();
+        adapter.setUserList(userList);
+        showToast("用户列表已刷新");
+        
+        // 同时尝试从客户端同步新数据
+        triggerInitialSync();
+    }
+    
+    /**
+     * 统一的推送操作到客户端方法
+     */
+    private void pushOperationToClient(String operation, String username, String account, String password) {
+        Log.d(TAG, "Pushing " + operation + " to client - user: " + username);
+        
+        new Thread(() -> {
+            try {
+                Intent intent = new Intent();
+                intent.setComponent(new ComponentName(SyncConfig.CLIENT_PACKAGE, SyncConfig.CLIENT_SERVICE));
+                
+                ServiceConnection connection = new ServiceConnection() {
+                    @Override
+                    public void onServiceConnected(ComponentName name, IBinder service) {
+                        Log.d(TAG, "Connected to client for " + operation + " push");
+                        try {
+                            IAdminService clientService = IAdminService.Stub.asInterface(service);
+                            
+                            boolean success = true;
+                            String successMessage = "";
+                            String failMessage = "";
+                            
+                            // 根据操作类型执行相应的客户端操作
+                            switch (operation) {
+                                case "updatePassword":
+                                    clientService.updateUserPassword(username, password);
+                                    successMessage = "密码已同步到客户端";
+                                    failMessage = "密码同步到客户端失败";
+                                    break;
+                                    
+                                case "addUser":
+                                    success = clientService.registerUser(username, account, password);
+                                    successMessage = success ? "新用户已同步到客户端" : "用户已存在于客户端";
+                                    failMessage = "用户同步到客户端失败";
+                                    break;
+                                    
+                                case "deleteUser":
+                                    clientService.deleteUser(username);
+                                    successMessage = "用户删除已同步到客户端";
+                                    failMessage = "用户删除同步到客户端失败";
+                                    break;
+                                    
+                                default:
+                                    Log.w(TAG, "Unknown operation: " + operation);
+                                    success = false;
+                                    failMessage = "未知操作";
+                            }
+                            
+                            if (success) {
+                                Log.d(TAG, operation + " pushed to client successfully");
+                                final String msg = successMessage;
+                                runOnUiThread(() -> showToast(msg));
+                            } else {
+                                Log.w(TAG, operation + " push failed");
+                                final String msg = failMessage;
+                                runOnUiThread(() -> showToast(msg));
+                            }
+                            
+                            unbindService(this);
+                        } catch (Exception e) {
+                            Log.e(TAG, "Error pushing " + operation + " to client", e);
+                            runOnUiThread(() -> showToast(operation + "同步到客户端失败"));
+                        }
+                    }
+                    
+                    @Override
+                    public void onServiceDisconnected(ComponentName name) {
+                        Log.d(TAG, "Client service disconnected after " + operation + " push");
+                    }
+                };
+                
+                boolean bound = bindService(intent, connection, Context.BIND_AUTO_CREATE);
+                if (!bound) {
+                    Log.w(TAG, "Failed to bind to client for " + operation + " push");
+                    runOnUiThread(() -> showToast("客户端不可用，操作未同步"));
+                }
+                
+            } catch (Exception e) {
+                Log.e(TAG, "Error in pushOperationToClient for " + operation, e);
+            }
+        }).start();
+    }
+    
+    /**
+     * 设置数据库变化监听器
+     */
+    private void setupDatabaseChangeListener() {
+        databaseChangeReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                if (SyncConfig.DATABASE_CHANGE_ACTION.equals(intent.getAction())) {
+                    String operation = intent.getStringExtra("operation");
+                    String username = intent.getStringExtra("username");
+                    
+                    Log.d(TAG, "Received database change broadcast: " + operation + " for user: " + username);
+                    
+                    // 在主线程中刷新用户列表
+                    runOnUiThread(() -> {
+                        userList = adminViewModel.getAllUsers();
+                        adapter.setUserList(userList);
+                        
+                        // 显示相应的提示信息
+                        switch (operation) {
+                            case "password_updated":
+                                showToast("客户端修改了用户密码: " + username);
+                                break;
+                            case "user_deleted":
+                                showToast("客户端删除了用户: " + username);
+                                break;
+                            default:
+                                showToast("客户端数据变化: " + operation);
+                                break;
+                        }
+                    });
+                }
+            }
+        };
+        
+        // 注册广播接收器
+        IntentFilter filter = new IntentFilter(SyncConfig.DATABASE_CHANGE_ACTION);
+        
+        // Android 14+ 需要指定 RECEIVER_NOT_EXPORTED，因为这是应用内部广播
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(databaseChangeReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+        } else {
+            registerReceiver(databaseChangeReceiver, filter);
+        }
+        Log.d(TAG, "Database change listener registered");
+    }
+    
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        
+        // 注销广播接收器
+        if (databaseChangeReceiver != null) {
+            try {
+                unregisterReceiver(databaseChangeReceiver);
+                Log.d(TAG, "Database change listener unregistered");
+            } catch (Exception e) {
+                Log.e(TAG, "Error unregistering database change listener", e);
+            }
+        }
     }
 }

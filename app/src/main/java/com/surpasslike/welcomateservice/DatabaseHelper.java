@@ -9,7 +9,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     private final String TAG = "DatabaseHelper";
     // 定义用户表的相关信息
     public static final String TABLE_USERS = "users";
-    private static final String COLUMN_ID = "id";
+    public static final String COLUMN_ID = "id";
     public static final String COLUMN_USERNAME = "username";
     public static final String COLUMN_ACCOUNT = "account";
     public static final String COLUMN_PASSWORD = "password";

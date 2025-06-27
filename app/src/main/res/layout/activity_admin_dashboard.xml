@@ -13,12 +13,29 @@
         android:layout_marginTop="16dp"
         android:layout_marginEnd="16dp"
         android:layout_marginBottom="16dp"
-        app:layout_constraintBottom_toTopOf="@+id/btnChangePassword"
+        app:layout_constraintBottom_toTopOf="@+id/btnRefresh"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintVertical_bias="0.0"
         app:layout_constraintVertical_chainStyle="packed" />
+
+    <Button
+        android:id="@+id/btnRefresh"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Refresh User List"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:textColor="@android:color/white"
+        android:padding="12dp"
+        app:layout_constraintBottom_toTopOf="@+id/btnChangePassword"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/recyclerView"
+        app:layout_constraintVertical_bias="0.5"
+        android:layout_marginTop="16dp"
+        android:layout_marginBottom="16dp" />
 
     <Button
         android:id="@+id/btnChangePassword"
@@ -27,13 +44,12 @@
         android:text="Change Password"
         android:textSize="18sp"
         android:textStyle="bold"
-
         android:textColor="@android:color/white"
         android:padding="12dp"
         app:layout_constraintBottom_toTopOf="@+id/btnAddUser"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/recyclerView"
+        app:layout_constraintTop_toBottomOf="@+id/btnRefresh"
         app:layout_constraintVertical_bias="0.5"
         android:layout_marginTop="16dp"
         android:layout_marginBottom="16dp" />
@@ -46,7 +62,6 @@
         android:textSize="18sp"
         android:textStyle="bold"
         android:textColor="@android:color/white"
-
         android:padding="12dp"
         app:layout_constraintBottom_toTopOf="@+id/btnDeleteUser"
         app:layout_constraintEnd_toEndOf="parent"
@@ -64,7 +79,6 @@
         android:textSize="18sp"
         android:textStyle="bold"
         android:textColor="@android:color/white"
-
         android:padding="12dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
