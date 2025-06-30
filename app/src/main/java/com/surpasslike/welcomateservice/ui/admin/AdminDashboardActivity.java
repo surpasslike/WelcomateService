@@ -1,4 +1,4 @@
-package com.surpasslike.welcomateservice.admin;
+package com.surpasslike.welcomateservice.ui.admin;
 
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
@@ -13,7 +13,7 @@ import android.widget.EditText;
 import android.widget.Toast;
 
 import com.surpasslike.welcomateservice.R;
-import com.surpasslike.welcomateservice.User;
+import com.surpasslike.welcomateservice.data.model.User;
 import com.surpasslike.welcomateservice.databinding.ActivityAdminDashboardBinding;
 
 import java.util.List;
@@ -23,7 +23,7 @@ public class AdminDashboardActivity extends AppCompatActivity {
     private ActivityAdminDashboardBinding binding;
     private AdminViewModel adminViewModel;
     private List<User> userList;
-    private com.surpasslike.welcomateservice.admin.AdminUserAdapter adapter;
+    private AdminUserAdapter adapter;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -35,7 +35,7 @@ public class AdminDashboardActivity extends AppCompatActivity {
         // 初始化 RecyclerView 和用户列表
         RecyclerView recyclerView = binding.recyclerView;
         userList = adminViewModel.getAllUsers();
-        adapter = new com.surpasslike.welcomateservice.admin.AdminUserAdapter(userList);
+        adapter = new AdminUserAdapter(userList);
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
         recyclerView.setAdapter(adapter);
 

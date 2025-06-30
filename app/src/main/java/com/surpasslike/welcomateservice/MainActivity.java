@@ -11,6 +11,8 @@ import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
+import com.surpasslike.welcomateservice.ui.admin.AdminLoginActivity;
+
 public class MainActivity extends AppCompatActivity {
 
     @SuppressLint("MissingInflatedId")
@@ -27,7 +29,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void onAdminButtonClick(View view) {
-        Intent intent = new Intent(this, com.surpasslike.welcomateservice.admin.AdminLoginActivity.class);
+        Intent intent = new Intent(this, AdminLoginActivity.class);
         startActivity(intent);
     }
 }
