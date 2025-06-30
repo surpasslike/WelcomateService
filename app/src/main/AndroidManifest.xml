@@ -6,7 +6,13 @@
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.INTERACT_ACROSS_USERS_FULL"
         tools:ignore="ProtectedPermissions" />
-    <uses-permission android:name="com.surpasslike.welcomateservice.PERMISSION_ADMIN" />
+
+    <!-- 创造一个新的权限(就像锁一样)，名字叫 ADMIN_SERVICE
+    protectionLevel="signature"决定了这把钥匙的颁发规则：“只有和我拥有相同签名的人，才有资格获得这把钥匙。-->
+    <permission
+        android:name="com.surpasslike.welcomateservice.permission.ADMIN_SERVICE"
+        android:protectionLevel="signature" />
+
     <queries>
         <package android:name="com.surpasslike.welcomate"/>
     </queries>
@@ -21,10 +27,12 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.WelcomateService">
 
+        <!-- 用刚刚造好的这把锁，把 AdminService 锁起来 -->
         <service
             android:name=".admin.AdminService"
             android:enabled="true"
-            android:exported="true" />
+            android:exported="true"
+            android:permission="com.surpasslike.welcomateservice.permission.ADMIN_SERVICE" />
 
         <activity
             android:name=".admin.AdminRegisterActivity"
